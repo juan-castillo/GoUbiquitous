@@ -20,6 +20,7 @@ import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
@@ -529,23 +530,13 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter implements
             double high = cursor.getDouble(INDEX_MAX_TEMP);
             double low = cursor.getDouble(INDEX_MIN_TEMP);
 
-            int iconId = Utility.getIconResourceForWeatherCondition(weatherId);
             Resources resources = getContext().getResources();
             int artResourceId = Utility.getArtResourceForWeatherCondition(weatherId);
             String artUrl = Utility.getArtUrlForWeatherCondition(getContext(), weatherId);
 
-            // On Honeycomb and higher devices, we can retrieve the size of the large icon
-            // Prior to that, we use a fixed size
-            @SuppressLint("InlinedApi")
-            int largeIconWidth = Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB
-                    ? resources.getDimensionPixelSize(android.R.dimen.notification_large_icon_width)
-                    : resources.getDimensionPixelSize(R.dimen.notification_large_icon_default);
-            @SuppressLint("InlinedApi")
-            int largeIconHeight = Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB
-                    ? resources.getDimensionPixelSize(android.R.dimen.notification_large_icon_height)
-                    : resources.getDimensionPixelSize(R.dimen.notification_large_icon_default);
-
-            // Retrieve the large icon
+            int smallIconWidth = resources.getDimensionPixelSize(R.dimen.small_icon_width);
+            int smallIconHeight = resources.getDimensionPixelSize(R.dimen.small_icon_height);
+            // Retrieve the icon
             Bitmap icon;
             try {
                 icon = Glide.with(getContext())
@@ -553,7 +544,7 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter implements
                         .asBitmap()
                         .error(artResourceId)
                         .fitCenter()
-                        .into(largeIconWidth, largeIconHeight).get();
+                        .into(smallIconWidth, smallIconHeight).get();
             } catch (InterruptedException | ExecutionException e) {
                 Log.e(LOG_TAG, "Error retrieving large icon from " + artUrl, e);
                 icon = BitmapFactory.decodeResource(resources, artResourceId);
@@ -562,8 +553,8 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter implements
 
             PutDataMapRequest dataMap = PutDataMapRequest.create(UPDATE_FORECAST_PATH);
             dataMap.getDataMap().putAsset(KEY_ICON, asset);
-            dataMap.getDataMap().putDouble(KEY_MAX_TEMP, high);
-            dataMap.getDataMap().putDouble(KEY_MIN_TEMP, low);
+            dataMap.getDataMap().putInt(KEY_MAX_TEMP, (int) high);
+            dataMap.getDataMap().putInt(KEY_MIN_TEMP, (int) low);
 
             PutDataRequest request = dataMap.asPutDataRequest();
             Wearable.DataApi.putDataItem(googleApiClient, request);
@@ -738,6 +729,14 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter implements
     @Override
     public void onConnected(Bundle connectionHint) {
         Log.d(LOG_TAG, "onConnected: " + connectionHint);
+        new AsyncTask() {
+            @Override
+            protected Object doInBackground(Object[] params) {
+                updateWearable();
+                return null;
+            }
+        }.execute();
+
     }
 
     @Override
